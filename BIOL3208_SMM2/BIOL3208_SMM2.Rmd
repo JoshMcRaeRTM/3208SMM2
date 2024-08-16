@@ -1,0 +1,6 @@
+---
+title: "Lab Time Planner"
+author: "Joshua McRae"
+date: "2024-08-16"
+output: html_document
+---
