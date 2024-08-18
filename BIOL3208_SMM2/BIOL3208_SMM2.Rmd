@@ -4,3 +4,36 @@ author: "Joshua McRae"
 date: "2024-08-16"
 output: html_document
 ---
+
+```{r}
+Standard <- data.frame(Time = as.POSIXct(c("2024-08-16 8:00:00", "2024-08-16 10:10:00", "2024-08-16 10:35:00", "2024-08-16 10:40:00", "2024-08-16 10:55:00", "2024-08-16 11:20:00", "2024-08-16 11:35:00", "2024-08-16 15:10:00", "2024-08-16 15:35:00", "2024-08-16 15:40:00", "2024-08-16 15:55:00", "2024-08-16 16:20:00", "2024-08-16 16:35:00")))
+```
+
+
+```{r}
+Time_Differences <- outer(Standard$Time, Standard$Time, FUN = function(x, y) abs(difftime(x, y, units = "mins")))
+Time_Differences
+```
+
+```{r}
+Num_Differences <- as.numeric(Time_Differences)
+Matrix_Differences <- matrix(Num_Differences, nrow = 13)
+Differences <- as.data.frame(Matrix_Differences)
+
+nrow(Differences)
+row.names(Differences) <- c("Collect Peels", "Dish 1 Buffer Swap", "Dish 2 Buffer Swap", "Dish 1 Extract", "Dish 1 Measure", "Dish 2 Extract", "Dish 2 Measure", "Dish 3 Buffer Swap", "Dish 4 Buffer Swap", "Dish 3 Extract", "Dish 3 Measure", "Dish 4 Extract", "Dish 4 Measure")
+colnames(Differences) <- c("Collect Peels", "Dish 1 Buffer Swap", "Dish 2 Buffer Swap", "Dish 1 Extract", "Dish 1 Measure", "Dish 2 Extract", "Dish 2 Measure", "Dish 3 Buffer Swap", "Dish 4 Buffer Swap", "Dish 3 Extract", "Dish 3 Measure", "Dish 4 Extract", "Dish 4 Measure")
+Differences
+```
+
+```{r}
+Row_Cleanup <- c(0,1,2,3,4,5,6,7,8,9,10,11,12)
+```
+
+```{r}
+for(i in 1:ncol(Differences)) {
+  Differences[1:Row_Cleanup[i], i] <- 0
+}
+
+```
+
