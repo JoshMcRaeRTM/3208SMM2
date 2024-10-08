@@ -105,3 +105,171 @@ Filtered_Data <- read_excel("Filtered_Data.xlsx")
 Filtered_Data <- Filtered_Data[-(1:10),]
 ```
 
+# Calculating Fluorescence Scaled to Area
+
+```
+We are interested in the fluorescence value scaled according to the stomatal area, so we need to turn the area measurements to kpixel & uM^2, and then divide the fluorescence row by these new area measurements.
+```
+
+```{r}
+Filtered_Data$ROI_Area_pixel <- Filtered_Data$ROI_Area_pixel/1000
+Filtered_Data$ROI_Area_M2 <- Filtered_Data$ROI_Area_M2 * 10^12
+```
+
+```{r}
+Filtered_Data$Area_Scale_Fluorescence <- Filtered_Data$Mean_Value/Filtered_Data$ROI_Area_M2
+```
+
+# Filtered Data Sanity Checks
+
+```{r}
+skim(Filtered_Data)
+```
+
+# Checking for Unnatural Distributions
+
+## We expect roughly equal numbers for these distributions, and we need to know these numbers for subsequent testing and graph labeling.
+
+```{r}
+table(Filtered_Data$Date_Measured)
+```
+
+```{r}
+table(Filtered_Data$Time_Measured)
+```
+
+```{r}
+table(Filtered_Data$Strain)
+```
+
+```{r}
+table(Filtered_Data$Treatment)
+```
+
+# Checking the number of entries for each combination
+
+```{r}
+Stomata_Per_Combination <- Filtered_Data |> 
+  group_by(Date_Measured, Time_Measured, Strain, Treatment) |> 
+  summarize(Count = n(), .groups = "drop")
+
+ggplot(data = Stomata_Per_Combination, aes(x = interaction(Date_Measured, Time_Measured, Strain, Treatment), y = Count)) + 
+  geom_bar(stat = "identity") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+```
+
+# Checking the number of stomata observed in each image in the strains across time (secondary finding of interest)
+
+```{r}
+ggplot(data = Filtered_Data, aes(x = interaction(Date_Measured, Strain), y = Stomata_Total)) + 
+  geom_boxplot() +
+  geom_jitter(aes(y = Stomata_Total), width = 0.2) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+```
+
+# Plotting the area scaled fluorescence for each combination of Date, Time, Genotype and Treatment
+
+```{r}
+ggplot(data = Filtered_Data, aes(interaction(Strain, Time_Measured, Date_Measured, Treatment), y = Area_Scale_Fluorescence)) + 
+  geom_boxplot() +
+  geom_jitter(aes(y = Area_Scale_Fluorescence), width = 0.2) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+```
+
+```{r}
+ggplot(data = Filtered_Data, aes(x = Treatment, y = Area_Scale_Fluorescence)) +
+  geom_boxplot() + 
+  facet_grid(Strain ~ Date_Measured + Time_Measured)
+```
+
+```
+Compare WT morning, afternoon, then across strains
+```
+
+```{r}
+WT_Data <- Filtered_Data |> 
+  filter(Strain == "WT", Date_Measured == c("Week 1", "Week 2"))
+```
+
+```{r}
+WT_Plot <- ggplot(data = WT_Data, aes(x = interaction(Treatment, Time_Measured, Date_Measured), y = Area_Scale_Fluorescence,  fill = interaction(Time_Measured, Date_Measured))) +
+  geom_boxplot() +
+  geom_jitter(aes(y = Area_Scale_Fluorescence), width = 0.2) + 
+  scale_x_discrete(labels = c("Mock AM\nWeek 1", "PAP AM\nWeek 1", "Mock PM\nWeek 1", "PAP PM\nWeek 1", "Mock AM\nWeek 2", "PAP AM\nWeek 2", "Mock PM\nWeek 2", "PAP PM\nWeek 2")) +
+  theme(legend.position = "none") +
+  labs(x = NULL, y = "Fluorescence scaled to Area: Arbitrary/uM2") +
+  ylim(0,10)
+
+ggsave("WT_Plot.png", plot = WT_Plot, width = 6, height = 4, dpi = 600)
+```
+
+```{r}
+WT_Aperture <- ggplot(data = WT_Data, aes(x = interaction(Treatment, Time_Measured, Date_Measured), y = Width_Stomatal_Aperture,  fill = interaction(Time_Measured, Date_Measured))) +
+  geom_boxplot() +
+  geom_jitter(aes(y = Width_Stomatal_Aperture), width = 0.2) + 
+  scale_x_discrete(labels = c("Mock AM\nWeek 1", "PAP AM\nWeek 1", "Mock PM\nWeek 1", "PAP PM\nWeek 1", "Mock AM\nWeek 2", "PAP AM\nWeek 2", "Mock PM\nWeek 2", "PAP PM\nWeek 2")) +
+  theme(legend.position = "none") +
+  labs(x = NULL, y = "Stomatal Aperture uM")
+
+ggsave("WT_Aperture_Plot.png", plot = WT_Aperture, width = 6, height = 4, dpi = 600)
+```
+
+
+```{r}
+L335V_Data <- Filtered_Data |> 
+  filter(Strain == "L335V", Date_Measured == c("Week 1", "Week 2"))
+```
+
+```{r}
+L335V_Plot <- ggplot(data = L335V_Data, aes(x = interaction(Treatment, Time_Measured, Date_Measured), y = Area_Scale_Fluorescence, fill = interaction(Time_Measured, Date_Measured))) +
+  geom_boxplot() +
+  geom_jitter(aes(y = Area_Scale_Fluorescence), width = 0.2) + 
+  scale_x_discrete(labels = c("Mock AM\nWeek 1", "PAP AM\nWeek 1", "Mock PM\nWeek 1", "PAP PM\nWeek 1", "Mock AM\nWeek 2", "PAP AM\nWeek 2", "Mock PM\nWeek 2", "PAP PM\nWeek 2")) +
+  theme(legend.position = "none") +
+  labs(x = NULL, y = "Fluorescence scaled to Area: Arbitrary Units/uM2") +
+  ylim(0,10)
+
+ggsave("L335V_Plot.png", plot = L335V_Plot, width = 6, height = 4, dpi = 600)
+```
+
+```{r}
+L335V_Aperture <- ggplot(data = L335V_Data, aes(x = interaction(Treatment, Time_Measured, Date_Measured), y = Width_Stomatal_Aperture,  fill = interaction(Time_Measured, Date_Measured))) +
+  geom_boxplot() +
+  geom_jitter(aes(y = Width_Stomatal_Aperture), width = 0.2) + 
+  scale_x_discrete(labels = c("Mock AM\nWeek 1", "PAP AM\nWeek 1", "Mock PM\nWeek 1", "PAP PM\nWeek 1", "Mock AM\nWeek 2", "PAP AM\nWeek 2", "Mock PM\nWeek 2", "PAP PM\nWeek 2")) +
+  theme(legend.position = "none") +
+  labs(x = NULL, y = "Stomatal Aperture uM")
+
+ggsave("L335V_Aperture_Plot.png", plot = L335V_Aperture, width = 6, height = 4, dpi = 600)
+```
+
+```{r}
+TOBRR_Data <- Filtered_Data |> 
+  filter(Strain == "TOBRR", Date_Measured == c("Week 1", "Week 2"))
+```
+
+```{r}
+TOBRR_Plot <- ggplot(data = TOBRR_Data, aes(x = interaction(Treatment, Time_Measured, Date_Measured), y = Area_Scale_Fluorescence,  fill = interaction(Time_Measured, Date_Measured))) +
+  geom_boxplot() +
+  geom_jitter(aes(y = Area_Scale_Fluorescence), width = 0.2) + 
+  scale_x_discrete(labels = c("Mock AM\nWeek 1", "PAP AM\nWeek 1", "Mock PM\nWeek 1", "PAP PM\nWeek 1", "Mock AM\nWeek 2", "PAP AM\nWeek 2", "Mock PM\nWeek 2", "PAP PM\nWeek 2")) +
+  theme(legend.position = "none") +
+  labs(x = NULL, y = "Fluorescence scaled to Area: Arbitrary Units/uM2") +
+  ylim(0,10)
+
+ggsave("TOBRR_Plot.png", plot = TOBRR_Plot, width = 6, height = 4, dpi = 600)
+```
+
+```{r}
+TOBRR_Aperture <- ggplot(data = TOBRR_Data, aes(x = interaction(Treatment, Time_Measured, Date_Measured), y = Width_Stomatal_Aperture,  fill = interaction(Time_Measured, Date_Measured))) +
+  geom_boxplot() +
+  geom_jitter(aes(y = Width_Stomatal_Aperture), width = 0.2) + 
+  scale_x_discrete(labels = c("Mock AM\nWeek 1", "PAP AM\nWeek 1", "Mock PM\nWeek 1", "PAP PM\nWeek 1", "Mock PM\nWeek 2", "PAP PM\nWeek 2")) +
+  theme(legend.position = "none") +
+  labs(x = NULL, y = "Stomatal Aperture uM") +
+  ylim(-0.1,10)
+
+ggsave("TOBRR_Aperture_Plot.png", plot = TOBRR_Aperture, width = 6, height = 4, dpi = 600)
+```
+
+
