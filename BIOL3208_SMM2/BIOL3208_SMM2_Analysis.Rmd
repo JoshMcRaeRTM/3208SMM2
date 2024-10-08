@@ -273,3 +273,85 @@ ggsave("TOBRR_Aperture_Plot.png", plot = TOBRR_Aperture, width = 6, height = 4, 
 ```
 
 
+# Planning Comparisons
+
+## The end goal will be comparing the effect of treatment and strain on the fluorescence value when scaled by area, so we can compare if there are differences between strains for the treatments. 
+
+## However, we also want to test if across the strains there is a difference between the weeks (refering generally to growth stage). We will also need to test if there is a difference between the morning (90 minute light) and afternoon (360 minute light) differ, if they don't we can group them for increased replicates.
+
+## Testing the Effect of Treatment Time (Morning vs Afternoon)
+
+## ANOVA Assumptions
+
+```{r}
+#1) The two independent variables, the factors should consist of two or more categorical and independent levels. 
+#2) The dependent variable, the measurement should be continuous and approximately normally distributed within each group. 
+  # Probably assumed due to large sample size
+#3) The observations should be independent. Sample from an entire population. 
+  # Stomata are considered independent due to how unique they are from each other
+#4) The variance within each group should be approximately the same (homogeneity of variance, homoscedaticity). 
+#5) Residuals should be normally distributed. 
+  #qqnorm(X$residuals)
+  #qqline(X$residuals)
+#6) The design should be balanced, with the same number of observations in each category. 
+#7) There should be no significant outliers. 
+#8) The measurements in every group represent a random sample from a population. 
+
+```
+
+
+```{r}
+total_aov <- aov(Area_Scale_Fluorescence ~ Strain * Treatment * Date_Measured * Time_Measured, data = Filtered_Data)
+
+par(mfrow = c(1,2))
+hist(total_aov$residuals)
+qqnorm(total_aov$residuals)
+qqline(total_aov$residuals)
+par(mfrow = c(1,1))
+
+summary(total_aov)
+```
+
+```{r}
+TukeyHSD(total_aov)
+```
+
+
+
+# Statistically Assessing Residual Normality
+
+```{r}
+ggplot(data = Filtered_Data, aes(x = Area_Scale_Fluorescence)) +
+  geom_histogram()
+```
+
+
+```{r}
+shapiro.test(Filtered_Data$Area_Scale_Fluorescence)
+```
+
+
+```{r}
+shapiro.test(total_aov$residuals)
+```
+
+```
+This suggests the data is not normally distributed? But I also know statistical tests will reject normality with large sample sizes, when deviations might not be extreme enough to use alternatives?
+```
+
+```{r}
+leveneTest(Area_Scale_Fluorescence ~ Strain * Treatment * Date_Measured * Time_Measured, data = Filtered_Data)
+```
+
+```{r}
+leveneTest(Area_Scale_Fluorescence ~ Strain * Treatment * Date_Measured * Time_Measured, data = Filtered_Data)
+```
+
+
+# Plotting the Data
+
+```{r}
+ggplot(data = Raw_Data, aes(x = interaction(Treatment, Strain, Time_Measured, Date_Measured), y = Mean_Value)) + 
+  geom_boxplot() +
+  geom_jitter(aes(color = Time_Measured), alpha = 0.5, width = 0.1)
+```
