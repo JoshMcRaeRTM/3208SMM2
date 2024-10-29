@@ -434,46 +434,253 @@ par(mfrow = c(1,1))
 summary(total_aov)
 ```
 
+
 ```{r}
-TukeyHSD(total_aov)
+TukeyOutput <- TukeyHSD(total_aov)
+TukeyResults <- as.data.frame(TukeyOutput$`Strain:Treatment:Date_Measured:Time_Measured`)
+TukeyResults$Comparison <- rownames(TukeyResults)
+
+Comparisons_Of_Interest <- c("TOBRR:PAP:Week 1:AM-TOBRR:Mock:Week 1:AM", "TOBRR:PAP:Week 2:AM-TOBRR:Mock:Week 2:AM", "TOBRR:PAP:Week 3:AM-TOBRR:Mock:Week 3:AM", "L335V:PAP:Week 1:AM-L335V:Mock:Week 1:AM", "L335V:PAP:Week 2:AM-L335V:Mock:Week 2:AM", "L335V:PAP:Week 3:AM-L335V:Mock:Week 3:AM", "WT:PAP:Week 1:AM-WT:Mock:Week 1:AM", "WT:PAP:Week 2:AM-WT:Mock:Week 2:AM", "WT:PAP:Week 3:AM-WT:Mock:Week 3:AM", "TOBRR:PAP:Week 1:PM-TOBRR:Mock:Week 1:PM", "TOBRR:PAP:Week 2:PM-TOBRR:Mock:Week 2:PM", "TOBRR:PAP:Week 3:PM-TOBRR:Mock:Week 3:PM", "L335V:PAP:Week 1:PM-L335V:Mock:Week 1:PM", "L335V:PAP:Week 2:PM-L335V:Mock:Week 2:PM", "L335V:PAP:Week 3:PM-L335V:Mock:Week 3:PM", "WT:PAP:Week 1:PM-WT:Mock:Week 1:PM", "WT:PAP:Week 2:PM-WT:Mock:Week 2:PM", "WT:PAP:Week 3:PM-WT:Mock:Week 3:PM")
+TukeyResults[TukeyResults$Comparison %in% Comparisons_Of_Interest,]
 ```
 
-
+```
+However, we need to make sure assumptions around homogeneity of variance and normality of residues are upheld.
+```
 
 # Statistically Assessing Residual Normality
-
-```{r}
-ggplot(data = Filtered_Data, aes(x = Area_Scale_Fluorescence)) +
-  geom_histogram()
-```
-
-
-```{r}
-shapiro.test(Filtered_Data$Area_Scale_Fluorescence)
-```
-
 
 ```{r}
 shapiro.test(total_aov$residuals)
 ```
 
-```
-This suggests the data is not normally distributed? But I also know statistical tests will reject normality with large sample sizes, when deviations might not be extreme enough to use alternatives?
-```
-
 ```{r}
 leveneTest(Area_Scale_Fluorescence ~ Strain * Treatment * Date_Measured * Time_Measured, data = Filtered_Data)
 ```
-
-```{r}
-leveneTest(Area_Scale_Fluorescence ~ Strain * Treatment * Date_Measured * Time_Measured, data = Filtered_Data)
+```
+This suggests these assumptions are not upheld (parametric ANOVA may not be suitable), let's first try to transform the data and see if that changes these results.
 ```
 
 
-# Plotting the Data
+```{r}
+Log_Data <- Filtered_Data
+# Square Root Transformation
+Log_Data$Log_Area_Scale_Fluorescence <- sqrt(Filtered_Data$Area_Scale_Fluorescence)
+skewness(Log_Data$Log_Area_Scale_Fluorescence)
+
+# Natural Log Transformation
+Log_Data$Log_Area_Scale_Fluorescence <- log(Filtered_Data$Area_Scale_Fluorescence)
+skewness(Log_Data$Log_Area_Scale_Fluorescence)
+
+# Log2 Transformation
+Log_Data$Log_Area_Scale_Fluorescence <- log2(Filtered_Data$Area_Scale_Fluorescence)
+skewness(Log_Data$Log_Area_Scale_Fluorescence)
+
+# Log10 Transformation
+Log_Data$Log_Area_Scale_Fluorescence <- log10(Filtered_Data$Area_Scale_Fluorescence)
+skewness(Log_Data$Log_Area_Scale_Fluorescence)
+
+# Reciprocal Transformation
+Log_Data$Log_Area_Scale_Fluorescence <- 1/(Filtered_Data$Area_Scale_Fluorescence)
+skewness(Log_Data$Log_Area_Scale_Fluorescence)
+
+log_aov <- aov(Log_Area_Scale_Fluorescence ~ Strain * Treatment * Date_Measured * Time_Measured, data = Log_Data)
+```
+
+```
+This transformation helps, but the assumptions are still violated, so it is probably better to consider a non-parametric alternative, or a mixed linear model. Hopefully your data will not violate these assumptions as an ANOVA is far nicer for interpreting potentially random effects. After discussing with Kai a Kruskal-Wallis pairwise comparison was decided to be used for this dataset directly comparing Mock and PAP pairs, with a Dunn post-hoc test.
+```
 
 ```{r}
-ggplot(data = Raw_Data, aes(x = interaction(Treatment, Strain, Time_Measured, Date_Measured), y = Mean_Value)) + 
-  geom_boxplot() +
-  geom_jitter(aes(color = Time_Measured), alpha = 0.5, width = 0.1)
+Filtered_Data$Combined_Factors <- interaction(Filtered_Data$Strain, Filtered_Data$Treatment, Filtered_Data$Date_Measured, Filtered_Data$Time_Measured)
+
+kruskal.test(data = Filtered_Data, Area_Scale_Fluorescence ~ Combined_Factors)
+```
+
+```{r}
+Dunn_Results <- dunnTest(data = Filtered_Data, Area_Scale_Fluorescence ~ Combined_Factors, method = "bh")
+
+# Gotta extract specifically the results dataframe for easy access
+Dunn_Results <- Dunn_Results$res
+Dunn_Results$P.unadj <- format(Dunn_Results$P.unadj, scientific = FALSE)
+
+Comparisons_Of_Interest <- c("TOBRR.Mock.Week 1.AM - TOBRR.PAP.Week 1.AM", "TOBRR.Mock.Week 2.AM - TOBRR.PAP.Week 2.AM", "TOBRR.Mock.Week 3.AM - TOBRR.PAP.Week 3.AM", "L335V.Mock.Week 1.AM - L335V.PAP.Week 1.AM", "L335V.Mock.Week 2.AM - L335V.PAP.Week 2.AM", "L335V.Mock.Week 3.AM - L335V.PAP.Week 3.AM", "WT.Mock.Week 1.AM - WT.PAP.Week 1.AM", "WT.Mock.Week 2.AM - WT.PAP.Week 2.AM", "WT.Mock.Week 3.AM - WT.PAP.Week 3.AM", "TOBRR.Mock.Week 1.PM - TOBRR.PAP.Week 1.PM", "TOBRR.Mock.Week 2.PM - TOBRR.PAP.Week 2.PM", "TOBRR.Mock.Week 3.PM - TOBRR.PAP.Week 3.PM", "L335V.Mock.Week 1.PM - L335V.PAP.Week 1.PM", "L335V.Mock.Week 2.PM - L335V.PAP.Week 2.PM", "L335V.Mock.Week 3.PM - L335V.PAP.Week 3.PM", "WT.Mock.Week 1.PM - WT.PAP.Week 1.PM", "WT.Mock.Week 2.PM - WT.PAP.Week 2.PM", "WT.Mock.Week 3.PM - WT.PAP.Week 3.PM")
+
+Dunn_Results[Dunn_Results$Comparison %in% Comparisons_Of_Interest,]
+```
+
+# Stomatal Aperture Statistical Analysis
+
+```
+For analysing stomatal aperture a similar process will be performed, first testing if ANOVA is suitable as a parametric test.
+```
+
+```{r}
+total_aov <- aov(Width_Stomatal_Aperture ~ Strain * Treatment * Date_Measured * Time_Measured, data = Filtered_Data)
+
+par(mfrow = c(1,2))
+hist(total_aov$residuals)
+qqnorm(total_aov$residuals)
+qqline(total_aov$residuals)
+par(mfrow = c(1,1))
+
+summary(total_aov)
+```
+
+
+```{r}
+TukeyOutput <- TukeyHSD(total_aov)
+TukeyResults <- as.data.frame(TukeyOutput$`Strain:Treatment:Date_Measured:Time_Measured`)
+TukeyResults$Comparison <- rownames(TukeyResults)
+
+Comparisons_Of_Interest <- c("TOBRR:PAP:Week 1:AM-TOBRR:Mock:Week 1:AM", "TOBRR:PAP:Week 2:AM-TOBRR:Mock:Week 2:AM", "TOBRR:PAP:Week 3:AM-TOBRR:Mock:Week 3:AM", "L335V:PAP:Week 1:AM-L335V:Mock:Week 1:AM", "L335V:PAP:Week 2:AM-L335V:Mock:Week 2:AM", "L335V:PAP:Week 3:AM-L335V:Mock:Week 3:AM", "WT:PAP:Week 1:AM-WT:Mock:Week 1:AM", "WT:PAP:Week 2:AM-WT:Mock:Week 2:AM", "WT:PAP:Week 3:AM-WT:Mock:Week 3:AM", "TOBRR:PAP:Week 1:PM-TOBRR:Mock:Week 1:PM", "TOBRR:PAP:Week 2:PM-TOBRR:Mock:Week 2:PM", "TOBRR:PAP:Week 3:PM-TOBRR:Mock:Week 3:PM", "L335V:PAP:Week 1:PM-L335V:Mock:Week 1:PM", "L335V:PAP:Week 2:PM-L335V:Mock:Week 2:PM", "L335V:PAP:Week 3:PM-L335V:Mock:Week 3:PM", "WT:PAP:Week 1:PM-WT:Mock:Week 1:PM", "WT:PAP:Week 2:PM-WT:Mock:Week 2:PM", "WT:PAP:Week 3:PM-WT:Mock:Week 3:PM")
+TukeyResults[TukeyResults$Comparison %in% Comparisons_Of_Interest,]
+```
+
+```{r}
+shapiro.test(total_aov$residuals)
+```
+
+```{r}
+leveneTest(Width_Stomatal_Aperture ~ Strain * Treatment * Date_Measured * Time_Measured, data = Filtered_Data)
+```
+
+```
+Again, the assumptions are violated significantly, so the Kruskal-Wallis with Dunn test approach will again be used.
+```
+
+```{r}
+kruskal.test(data = Filtered_Data, Width_Stomatal_Aperture ~ Combined_Factors)
+```
+
+```{r}
+Dunn_Results <- dunnTest(data = Filtered_Data, Width_Stomatal_Aperture ~ Combined_Factors, method = "bh")
+
+# Gotta extract specifically the results dataframe for easy access
+Dunn_Results <- Dunn_Results$res
+Dunn_Results$P.unadj <- format(Dunn_Results$P.unadj, scientific = FALSE)
+
+Comparisons_Of_Interest <- c("TOBRR.Mock.Week 1.AM - TOBRR.PAP.Week 1.AM", "TOBRR.Mock.Week 2.AM - TOBRR.PAP.Week 2.AM", "TOBRR.Mock.Week 3.AM - TOBRR.PAP.Week 3.AM", "L335V.Mock.Week 1.AM - L335V.PAP.Week 1.AM", "L335V.Mock.Week 2.AM - L335V.PAP.Week 2.AM", "L335V.Mock.Week 3.AM - L335V.PAP.Week 3.AM", "WT.Mock.Week 1.AM - WT.PAP.Week 1.AM", "WT.Mock.Week 2.AM - WT.PAP.Week 2.AM", "WT.Mock.Week 3.AM - WT.PAP.Week 3.AM", "TOBRR.Mock.Week 1.PM - TOBRR.PAP.Week 1.PM", "TOBRR.Mock.Week 2.PM - TOBRR.PAP.Week 2.PM", "TOBRR.Mock.Week 3.PM - TOBRR.PAP.Week 3.PM", "L335V.Mock.Week 1.PM - L335V.PAP.Week 1.PM", "L335V.Mock.Week 2.PM - L335V.PAP.Week 2.PM", "L335V.Mock.Week 3.PM - L335V.PAP.Week 3.PM", "WT.Mock.Week 1.PM - WT.PAP.Week 1.PM", "WT.Mock.Week 2.PM - WT.PAP.Week 2.PM", "WT.Mock.Week 3.PM - WT.PAP.Week 3.PM")
+
+Dunn_Results[Dunn_Results$Comparison %in% Comparisons_Of_Interest,]
+```
+
+# Fold Change Calculations
+
+```
+Each section here involves i) the mean + SD calculations for each combination of Date_Measured-Time_Measured-Treatment, and calculations of the fold difference between Mock and PAP means of ii)     ROS fluorescence and iii) stomatal aperture for each combination of Genotype-Date_Measured-Time_Measured.
+```
+
+## WT Fold Change Calculations
+
+```{r}
+WT_Data_AM |> 
+  group_by(Date_Measured, Treatment) |> 
+  summarise(
+    Mean_Fluor = mean(Area_Scale_Fluorescence, na.rm = T),
+    SD_Fluor = sd(Area_Scale_Fluorescence, na.rm = T),
+    Mean_Aper = mean(Width_Stomatal_Aperture, na.rm = T),
+    SD_Aper = sd(Width_Stomatal_Aperture, na.rm = T)
+  )
+```
+
+```{r}
+WT_Data_AM |> 
+  group_by(Date_Measured) |> 
+  summarise(
+    Fold_Change = mean(Area_Scale_Fluorescence[Treatment == "PAP"])/mean(Area_Scale_Fluorescence[Treatment == "Mock"])
+  )
+```
+
+```{r}
+WT_Data_AM |> 
+  group_by(Date_Measured) |> 
+  summarise(
+    Fold_Change = mean(Width_Stomatal_Aperture[Treatment == "PAP"])/mean(Width_Stomatal_Aperture[Treatment == "Mock"])
+  )
+```
+
+```{r}
+WT_Data_PM |> 
+  group_by(Date_Measured, Treatment) |> 
+  summarise(
+    Mean_Fluor = mean(Area_Scale_Fluorescence, na.rm = T),
+    SD_Fluor = sd(Area_Scale_Fluorescence, na.rm = T),
+    Mean_Aper = mean(Width_Stomatal_Aperture, na.rm = T),
+    SD_Aper = sd(Width_Stomatal_Aperture, na.rm = T)
+  )
+```
+
+```{r}
+WT_Data_PM |> 
+  group_by(Date_Measured) |> 
+  summarise(
+    Fold_Change = mean(Area_Scale_Fluorescence[Treatment == "PAP"])/mean(Area_Scale_Fluorescence[Treatment == "Mock"])
+  )
+```
+
+```{r}
+WT_Data_PM |> 
+  group_by(Date_Measured) |> 
+  summarise(
+    Fold_Change = mean(Width_Stomatal_Aperture[Treatment == "PAP"])/mean(Width_Stomatal_Aperture[Treatment == "Mock"])
+  )
+```
+
+# L335V Fold Change
+
+```{r}
+L335V_Data |> 
+  group_by(Date_Measured, Time_Measured, Treatment) |> 
+  summarise(
+    Mean_Fluor = mean(Area_Scale_Fluorescence, na.rm = T),
+    SD_Fluor = sd(Area_Scale_Fluorescence, na.rm = T),
+    Mean_Aper = mean(Width_Stomatal_Aperture, na.rm = T),
+    SD_Aper = sd(Width_Stomatal_Aperture, na.rm = T)
+  )
+```
+
+```{r}
+L335V_Data |> 
+  group_by(Date_Measured, Time_Measured) |> 
+  summarise(
+    Fold_Change = mean(Area_Scale_Fluorescence[Treatment == "PAP"])/mean(Area_Scale_Fluorescence[Treatment == "Mock"])
+  )
+```
+
+```{r}
+L335V_Data |> 
+  group_by(Date_Measured, Time_Measured) |> 
+  summarise(
+    Fold_Change = mean(Width_Stomatal_Aperture[Treatment == "PAP"])/mean(Width_Stomatal_Aperture[Treatment == "Mock"])
+  )
+```
+
+## TOBRR Fold Change
+
+```{r}
+TOBRR_Data |> 
+  group_by(Date_Measured, Time_Measured, Treatment) |> 
+  summarise(
+    Mean_Fluor = mean(Area_Scale_Fluorescence, na.rm = T),
+    SD_Fluor = sd(Area_Scale_Fluorescence, na.rm = T),
+    Mean_Aper = mean(Width_Stomatal_Aperture, na.rm = T),
+    SD_Aper = sd(Width_Stomatal_Aperture, na.rm = T)
+  )
+```
+
+```{r}
+TOBRR_Data |> 
+  group_by(Date_Measured, Time_Measured) |> 
+  summarise(
+    Fold_Change = mean(Area_Scale_Fluorescence[Treatment == "PAP"])/mean(Area_Scale_Fluorescence[Treatment == "Mock"])
+  )
+```
+
+```{r}
+TOBRR_Data |> 
+  group_by(Date_Measured, Time_Measured) |> 
+  summarise(
+    Fold_Change = mean(Width_Stomatal_Aperture[Treatment == "PAP"])/mean(Width_Stomatal_Aperture[Treatment == "Mock"])
+  )
 ```
